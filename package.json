@@ -1,0 +1,13 @@
+{
+  "name": "mcp-handson",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev:mcp:stdio": "pnpm --filter task-notes-mcp dev:stdio"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}
