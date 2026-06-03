@@ -1,0 +1,21 @@
+{
+  "name": "local-auth-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "oidc-provider": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/oidc-provider": "^9.5.0",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "^4.1.8"
+  }
+}

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
+    "dev:auth": "pnpm --filter local-auth-server dev",
     "dev:mcp:stdio": "pnpm --filter task-notes-mcp dev:stdio"
   },
   "devDependencies": {
