@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { verifyBearerToken } from "./auth.js";
 import { openDb } from "./db.js";
 import { createTaskNotesMcpServer } from "./mcp-server.js";
 import { TaskNotesRepository } from "./repository.js";
@@ -9,6 +10,9 @@ const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? "3000");
 const publicUrl = process.env.PUBLIC_URL ?? `http://${host}:${port}`;
 const authIssuer = process.env.AUTH_ISSUER ?? "http://127.0.0.1:4000";
+const authAudience = process.env.AUTH_AUDIENCE ?? "task-notes-mcp";
+const authJwksUrl = process.env.AUTH_JWKS_URL ?? `${authIssuer}/jwks`;
+const jwtValidationEnabled = process.env.AUTH_JWT_VALIDATION !== "disabled";
 
 const db = openDb(databaseUrl);
 const repo = new TaskNotesRepository(db);
@@ -47,6 +51,27 @@ const httpServer = createServer(async (request, response) => {
         message: "A valid bearer token is required.",
       }));
       return;
+    }
+
+    if (jwtValidationEnabled) {
+      const token = request.headers.authorization.slice("Bearer ".length);
+      try {
+        await verifyBearerToken(token, {
+          issuer: authIssuer,
+          audience: authAudience,
+          jwksUrl: authJwksUrl,
+        });
+      } catch {
+        response.writeHead(401, {
+          "Content-Type": "application/json",
+          ...unauthorizedHeaders(),
+        });
+        response.end(JSON.stringify({
+          error: "unauthorized",
+          message: "Invalid bearer token.",
+        }));
+        return;
+      }
     }
 
     const mcpServer = createTaskNotesMcpServer(repo);

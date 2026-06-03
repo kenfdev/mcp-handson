@@ -83,6 +83,7 @@ async function withMcpClient<T>(
 
 async function withHttpServer<T>(
   fn: (baseUrl: string) => Promise<T>,
+  options: { jwtValidation?: "enabled" | "disabled" } = {},
 ): Promise<T> {
   const appDir = resolve(import.meta.dirname, "..");
   const rootDir = resolve(appDir, "../..");
@@ -99,6 +100,7 @@ async function withHttpServer<T>(
       HOST: "127.0.0.1",
       PUBLIC_URL: baseUrl,
       AUTH_ISSUER: "http://127.0.0.1:4000",
+      AUTH_JWT_VALIDATION: options.jwtValidation ?? "enabled",
     },
     stdio: "pipe",
   });
@@ -137,7 +139,7 @@ async function withHttpMcpClient<T>(
     } finally {
       await client.close();
     }
-  });
+  }, { jwtValidation: "disabled" });
 }
 
 afterEach(async () => {
@@ -398,6 +400,34 @@ describe("task-notes-mcp contract", () => {
       await expect(response.json()).resolves.toEqual({
         error: "unauthorized",
         message: "A valid bearer token is required.",
+      });
+    });
+  }, 10000);
+
+  it("rejects invalid bearer tokens before handling Streamable HTTP MCP requests", async () => {
+    await withHttpServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+          Authorization: "Bearer not-a-jwt",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toBe(
+        `Bearer realm="mcp", resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
+      );
+      await expect(response.json()).resolves.toEqual({
+        error: "unauthorized",
+        message: "Invalid bearer token.",
       });
     });
   }, 10000);
