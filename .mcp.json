@@ -4,7 +4,7 @@
       "command": "pnpm",
       "args": ["--filter", "task-notes-mcp", "dev:stdio"],
       "env": {
-        "DATABASE_URL": "file:./apps/task-notes-mcp/task-notes.mcp.db"
+        "DATABASE_URL": "file:./task-notes.mcp.db"
       }
     },
     "task_notes_handson_http": {

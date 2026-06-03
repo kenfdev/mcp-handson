@@ -56,7 +56,7 @@ The repository includes a project-local `.mcp.json`:
       "command": "pnpm",
       "args": ["--filter", "task-notes-mcp", "dev:stdio"],
       "env": {
-        "DATABASE_URL": "file:./apps/task-notes-mcp/task-notes.mcp.db"
+        "DATABASE_URL": "file:./task-notes.mcp.db"
       }
     },
     "task_notes_handson_http": {
@@ -126,7 +126,7 @@ Do not run `codex mcp add --url` for this project unless you intentionally want 
 Terminal 1:
 
 ```bash
-rtk env DATABASE_URL=file:./apps/task-notes-mcp/task-notes.http.db HOST=127.0.0.1 PORT=3000 pnpm --filter task-notes-mcp dev:http
+rtk env DATABASE_URL=file:./task-notes.http.db HOST=127.0.0.1 PORT=3000 pnpm --filter task-notes-mcp dev:http
 ```
 
 Terminal 2:
