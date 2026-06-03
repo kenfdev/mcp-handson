@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Walkthrough"
+  short_description: "Project PR workflow for TDD walkthroughs"
+  default_prompt: "Create or update a pull request following the project's TDD walkthrough conventions."
