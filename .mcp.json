@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "task_notes_handson": {
+      "command": "pnpm",
+      "args": ["--filter", "task-notes-mcp", "dev:stdio"],
+      "env": {
+        "DATABASE_URL": "file:./apps/task-notes-mcp/task-notes.mcp.db"
+      }
+    }
+  }
+}

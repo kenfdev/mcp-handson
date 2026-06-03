@@ -6,4 +6,8 @@ export class TaskNotesRepository {
   list(): TaskNote[] {
     return this.db.list();
   }
+
+  get(id: number): TaskNote | undefined {
+    return this.db.get(id);
+  }
 }

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev:stdio": "tsx src/stdio.ts",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -16,6 +17,7 @@
     "@types/better-sqlite3": "latest",
     "@types/node": "latest",
     "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.8"
   }
 }
