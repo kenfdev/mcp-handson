@@ -6,6 +6,9 @@
       "env": {
         "DATABASE_URL": "file:./apps/task-notes-mcp/task-notes.mcp.db"
       }
+    },
+    "task_notes_handson_http": {
+      "url": "http://127.0.0.1:3000/mcp"
     }
   }
 }

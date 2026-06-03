@@ -65,12 +65,42 @@ HTTP server が起動しているかを素早く切り分けるための通常 H
 
 この step では `sessionIdGenerator: undefined` を使い、stateless mode にしています。session 管理を入れると HTTP transport と session lifecycle の学習が混ざるため、まずは transport と tool discovery だけを確認します。
 
+### `.mcp.json`
+
+`.mcp.json` には stdio server に加えて HTTP server entry も追加しました。
+
+```json
+{
+  "mcpServers": {
+    "task_notes_handson_http": {
+      "url": "http://127.0.0.1:3000/mcp"
+    }
+  }
+}
+```
+
+Codex CLI 0.136.0 は Streamable HTTP MCP server を `mcp_servers.<name>.url` で扱えます。ただし、この session で検証した限りでは `codex exec --cd <repo>` が `.mcp.json` を自動ロードしません。
+
+そのため project-local に試す場合は、HTTP server を起動したうえで `.mcp.json` から URL を読み取り、one-shot config override として渡します。
+
+```bash
+MCP_URL=$(rtk node -e 'const fs = require("node:fs"); const config = JSON.parse(fs.readFileSync(".mcp.json", "utf8")); console.log(config.mcpServers.task_notes_handson_http.url);')
+
+rtk codex exec \
+  --cd /Users/fukuyamaken/ghq/github.com/kenfdev/mcp-handson \
+  --dangerously-bypass-approvals-and-sandbox \
+  -c "mcp_servers.task_notes_handson_http.url=\"$MCP_URL\"" \
+  'Use the task_notes_handson_http MCP server. List available task note tools and then list task notes. Keep the answer concise.'
+```
+
 ## Verification
 
 - `rtk pnpm --filter task-notes-mcp test`
   - passed: `Test Files 1 passed (1)`, `Tests 8 passed (8)`
 - `rtk pnpm build`
   - passed: `task-notes-mcp`: `tsc -p tsconfig.json`
+- Codex CLI HTTP MCP smoke
+  - passed: `.mcp.json` から URL を読み取り、`task_notes_handson_http/list_task_notes` が呼ばれた
 
 ## Concept
 

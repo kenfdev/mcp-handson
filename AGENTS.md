@@ -21,12 +21,15 @@ Current project MCP server:
       "env": {
         "DATABASE_URL": "file:./apps/task-notes-mcp/task-notes.mcp.db"
       }
+    },
+    "task_notes_handson_http": {
+      "url": "http://127.0.0.1:3000/mcp"
     }
   }
 }
 ```
 
-If a client does not auto-load `.mcp.json`, use one-shot config overrides rather than global config. For Codex CLI:
+If a client does not auto-load `.mcp.json`, use one-shot config overrides rather than global config. For Codex CLI stdio:
 
 ```bash
 codex exec \
@@ -37,6 +40,24 @@ codex exec \
   -c 'mcp_servers.task_notes_handson.env={DATABASE_URL="file:/tmp/task-notes-handson-codex-oneshot.db"}' \
   -c 'mcp_servers.task_notes_handson.startup_timeout_sec=60' \
   'Use the task_notes_handson MCP server. List the task notes, then get task note id 1. Explain which MCP tools you used.'
+```
+
+For Codex CLI Streamable HTTP, start the HTTP server first:
+
+```bash
+rtk env DATABASE_URL=file:./apps/task-notes-mcp/task-notes.http.db HOST=127.0.0.1 PORT=3000 pnpm --filter task-notes-mcp dev:http
+```
+
+Then read the URL from `.mcp.json` and pass it as a one-shot override:
+
+```bash
+MCP_URL=$(rtk node -e 'const fs = require("node:fs"); const config = JSON.parse(fs.readFileSync(".mcp.json", "utf8")); console.log(config.mcpServers.task_notes_handson_http.url);')
+
+rtk codex exec \
+  --cd /Users/fukuyamaken/ghq/github.com/kenfdev/mcp-handson \
+  --dangerously-bypass-approvals-and-sandbox \
+  -c "mcp_servers.task_notes_handson_http.url=\"$MCP_URL\"" \
+  'Use the task_notes_handson_http MCP server. List available task note tools and then list task notes. Keep the answer concise.'
 ```
 
 ## Testing
