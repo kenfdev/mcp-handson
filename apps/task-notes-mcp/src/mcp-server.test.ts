@@ -81,13 +81,14 @@ async function withMcpClient<T>(
   }
 }
 
-async function withHttpMcpClient<T>(
-  fn: (client: Client) => Promise<T>,
+async function withHttpServer<T>(
+  fn: (baseUrl: string) => Promise<T>,
 ): Promise<T> {
   const appDir = resolve(import.meta.dirname, "..");
   const rootDir = resolve(appDir, "../..");
   const databaseUrl = await createTempDatabaseUrl();
   const port = await getAvailablePort();
+  const baseUrl = `http://127.0.0.1:${port}`;
 
   const child = spawn("pnpm", ["--filter", "task-notes-mcp", "dev:http"], {
     cwd: rootDir,
@@ -96,6 +97,8 @@ async function withHttpMcpClient<T>(
       DATABASE_URL: databaseUrl,
       PORT: String(port),
       HOST: "127.0.0.1",
+      PUBLIC_URL: baseUrl,
+      AUTH_ISSUER: "http://127.0.0.1:4000",
     },
     stdio: "pipe",
   });
@@ -105,9 +108,21 @@ async function withHttpMcpClient<T>(
   child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
 
   try {
-    await waitForHttpOk(`http://127.0.0.1:${port}/health`);
+    await waitForHttpOk(`${baseUrl}/health`);
+    return await fn(baseUrl);
+  } catch (error) {
+    const stderr = Buffer.concat(stderrChunks).toString("utf8");
+    throw new Error(`${String(error)}\nserver stderr:\n${stderr}`);
+  } finally {
+    child.kill();
+  }
+}
 
-    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`));
+async function withHttpMcpClient<T>(
+  fn: (client: Client) => Promise<T>,
+): Promise<T> {
+  return withHttpServer(async (baseUrl) => {
+    const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`));
     const client = new Client({ name: "task-notes-mcp-http-test", version: "0.1.0" });
     await client.connect(transport);
 
@@ -116,12 +131,7 @@ async function withHttpMcpClient<T>(
     } finally {
       await client.close();
     }
-  } catch (error) {
-    const stderr = Buffer.concat(stderrChunks).toString("utf8");
-    throw new Error(`${String(error)}\nserver stderr:\n${stderr}`);
-  } finally {
-    child.kill();
-  }
+  });
 }
 
 afterEach(async () => {
@@ -342,6 +352,20 @@ describe("task-notes-mcp contract", () => {
         "create_task_note",
         "update_task_status",
       ]);
+    });
+  }, 10000);
+
+  it("serves OAuth protected resource metadata over HTTP", async () => {
+    await withHttpServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/.well-known/oauth-protected-resource`);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("application/json");
+      await expect(response.json()).resolves.toEqual({
+        resource: `${baseUrl}/mcp`,
+        authorization_servers: ["http://127.0.0.1:4000"],
+        scopes_supported: ["task_notes:read", "task_notes:write"],
+      });
     });
   }, 10000);
 });
