@@ -13,6 +13,12 @@ const authIssuer = process.env.AUTH_ISSUER ?? "http://127.0.0.1:4000";
 const db = openDb(databaseUrl);
 const repo = new TaskNotesRepository(db);
 
+function unauthorizedHeaders() {
+  return {
+    "WWW-Authenticate": `Bearer realm="mcp", resource_metadata="${publicUrl}/.well-known/oauth-protected-resource"`,
+  };
+}
+
 const httpServer = createServer(async (request, response) => {
   if (request.url === "/health" && request.method === "GET") {
     response.writeHead(200, { "Content-Type": "application/json" });
@@ -31,6 +37,18 @@ const httpServer = createServer(async (request, response) => {
   }
 
   if (request.url === "/mcp") {
+    if (!request.headers.authorization?.startsWith("Bearer ")) {
+      response.writeHead(401, {
+        "Content-Type": "application/json",
+        ...unauthorizedHeaders(),
+      });
+      response.end(JSON.stringify({
+        error: "unauthorized",
+        message: "A valid bearer token is required.",
+      }));
+      return;
+    }
+
     const mcpServer = createTaskNotesMcpServer(repo);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
