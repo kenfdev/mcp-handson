@@ -82,6 +82,13 @@ gh pr view <number> --json body --jq '(.body | length)'
 
 If the body is empty, rewrite it using a temporary Markdown file and `gh pr edit --body-file`.
 
+PR descriptions must include test results with the exact commands run and pass/fail outcomes. At minimum include:
+
+- `pnpm --filter task-notes-mcp test`
+- `pnpm build`
+
+If a real LLM client smoke test was run, include that result too.
+
 ## Branch and TDD workflow
 
 Always create a new branch from `main` for each task before changing files.
