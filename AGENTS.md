@@ -74,6 +74,14 @@ For each step, explain:
 
 PR descriptions and important inline review comments should use Mermaid diagrams when they clarify MCP flow, boundaries, or failure semantics.
 
+When creating a PR, always verify the description is not empty after creation:
+
+```bash
+gh pr view <number> --json body --jq '(.body | length)'
+```
+
+If the body is empty, rewrite it using a temporary Markdown file and `gh pr edit --body-file`.
+
 ## Branch and TDD workflow
 
 Always create a new branch from `main` for each task before changing files.
