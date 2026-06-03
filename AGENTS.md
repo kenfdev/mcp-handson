@@ -73,3 +73,33 @@ For each step, explain:
 - how it was verified
 
 PR descriptions and important inline review comments should use Mermaid diagrams when they clarify MCP flow, boundaries, or failure semantics.
+
+When creating a PR, always verify the description is not empty after creation:
+
+```bash
+gh pr view <number> --json body --jq '(.body | length)'
+```
+
+If the body is empty, rewrite it using a temporary Markdown file and `gh pr edit --body-file`.
+
+PR descriptions must include test results with the exact commands run and pass/fail outcomes. At minimum include:
+
+- `pnpm --filter task-notes-mcp test`
+- `pnpm build`
+
+If a real LLM client smoke test was run, include that result too.
+
+## Branch and TDD workflow
+
+Always create a new branch from `main` for each task before changing files.
+
+Use TDD for feature work:
+
+1. Write one focused integration test for the next observable MCP behavior.
+2. Run the test and confirm it fails for the expected reason.
+3. Explain the test to the user: what behavior it covers, why it matters, and why it is not too fine-grained.
+4. Wait for user approval before implementing the production code.
+5. Implement the minimal code required to pass that test.
+6. Run the integration test and `pnpm build`.
+
+Prefer integration tests through the MCP public interface over narrow unit tests. Avoid fine-grained tests that couple to private implementation details.

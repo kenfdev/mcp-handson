@@ -72,5 +72,28 @@ export function createTaskNotesMcpServer(repo: TaskNotesRepository) {
     },
   );
 
+  server.registerTool(
+    "create_task_note",
+    {
+      title: "Create Task Note",
+      description: "Create a task note. Requires task_notes:write. Creates durable data.",
+      inputSchema: z.object({
+        title: z.string().min(1).max(120),
+        body: z.string().min(1).max(4000),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+      },
+      _meta: {
+        policy: toolPolicies.create_task_note,
+      },
+    },
+    async ({ title, body }) => {
+      const note = repo.create({ title, body });
+      return asJsonText({ note });
+    },
+  );
+
   return server;
 }

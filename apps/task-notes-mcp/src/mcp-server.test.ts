@@ -62,6 +62,7 @@ describe("task-notes-mcp stdio contract", () => {
       expect(tools.tools.map((tool) => tool.name)).toEqual([
         "list_task_notes",
         "get_task_note",
+        "create_task_note",
       ]);
 
       const getTaskNote = tools.tools.find((tool) => tool.name === "get_task_note");
@@ -85,6 +86,23 @@ describe("task-notes-mcp stdio contract", () => {
         properties: {
           id: {
             type: "integer",
+          },
+        },
+      });
+
+      const createTaskNote = tools.tools.find((tool) => tool.name === "create_task_note");
+      expect(createTaskNote).toMatchObject({
+        title: "Create Task Note",
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+        },
+        _meta: {
+          policy: {
+            requiredScopes: ["task_notes:write"],
+            readOnly: false,
+            destructive: false,
+            sideEffect: "create",
           },
         },
       });
@@ -147,6 +165,43 @@ describe("task-notes-mcp stdio contract", () => {
       const text = firstTextContent(result);
       expect(text).toContain("MCP error -32602");
       expect(text).toContain("Input validation error");
+    });
+  });
+
+  it("creates a task note and makes it readable by id", async () => {
+    await withMcpClient(async (client) => {
+      const created = await client.callTool({
+        name: "create_task_note",
+        arguments: {
+          title: "Write MCP contract tests",
+          body: "Cover tool discovery, creation, and follow-up reads through stdio.",
+        },
+      });
+
+      expect(created.isError).not.toBe(true);
+      const createdPayload = JSON.parse(firstTextContent(created)) as {
+        note: { id: number; title: string; body: string; status: string };
+      };
+      expect(createdPayload.note).toMatchObject({
+        id: 3,
+        title: "Write MCP contract tests",
+        body: "Cover tool discovery, creation, and follow-up reads through stdio.",
+        status: "open",
+      });
+
+      const fetched = await client.callTool({
+        name: "get_task_note",
+        arguments: { id: createdPayload.note.id },
+      });
+
+      expect(fetched.isError).not.toBe(true);
+      const fetchedPayload = JSON.parse(firstTextContent(fetched)) as {
+        note: { id: number; title: string };
+      };
+      expect(fetchedPayload.note).toMatchObject({
+        id: createdPayload.note.id,
+        title: "Write MCP contract tests",
+      });
     });
   });
 });

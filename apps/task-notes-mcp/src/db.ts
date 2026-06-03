@@ -14,6 +14,7 @@ export type TaskNote = {
 export type TaskNotesDb = {
   list(): TaskNote[];
   get(id: number): TaskNote | undefined;
+  create(input: { title: string; body: string }): TaskNote;
 };
 
 function seedData(db: Database.Database) {
@@ -65,6 +66,15 @@ export function openDb(databaseUrl: string): TaskNotesDb {
         from task_notes
         where id = ?
       `).get(id) as TaskNote | undefined;
+    },
+    create(input: { title: string; body: string }) {
+      const now = new Date().toISOString();
+      const result = db.prepare(`
+        insert into task_notes (title, body, status, created_at, updated_at)
+        values (?, ?, 'open', ?, ?)
+      `).run(input.title, input.body, now, now);
+
+      return this.get(Number(result.lastInsertRowid))!;
     },
   };
 }
