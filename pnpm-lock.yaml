@@ -42,6 +42,9 @@ importers:
       better-sqlite3:
         specifier: latest
         version: 12.10.0
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
       zod:
         specifier: latest
         version: 4.4.3

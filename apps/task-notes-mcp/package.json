@@ -12,6 +12,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "latest",
+    "jose": "^6.2.3",
     "zod": "latest"
   },
   "devDependencies": {
