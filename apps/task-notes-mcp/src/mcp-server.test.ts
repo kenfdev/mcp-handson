@@ -1,11 +1,15 @@
 import { mkdtemp, rm } from "node:fs/promises";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { spawn, type ChildProcess } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 const tempDirs: string[] = [];
+const childProcesses: ChildProcess[] = [];
 
 function firstTextContent(result: { content?: unknown }): string {
   const content = result.content;
@@ -20,6 +24,33 @@ async function createTempDatabaseUrl() {
   const dir = await mkdtemp(join(tmpdir(), "task-notes-mcp-test-"));
   tempDirs.push(dir);
   return `file:${join(dir, "task-notes.test.db")}`;
+}
+
+async function getAvailablePort() {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  if (!address || typeof address === "string") throw new Error("Could not allocate a test port.");
+  return address.port;
+}
+
+async function waitForHttpOk(url: string) {
+  const deadline = Date.now() + 3000;
+  let lastError: unknown;
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`Timed out waiting for ${url}: ${String(lastError)}`);
 }
 
 async function withMcpClient<T>(
@@ -50,11 +81,57 @@ async function withMcpClient<T>(
   }
 }
 
+async function withHttpMcpClient<T>(
+  fn: (client: Client) => Promise<T>,
+): Promise<T> {
+  const appDir = resolve(import.meta.dirname, "..");
+  const rootDir = resolve(appDir, "../..");
+  const databaseUrl = await createTempDatabaseUrl();
+  const port = await getAvailablePort();
+
+  const child = spawn("pnpm", ["--filter", "task-notes-mcp", "dev:http"], {
+    cwd: rootDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: databaseUrl,
+      PORT: String(port),
+      HOST: "127.0.0.1",
+    },
+    stdio: "pipe",
+  });
+  childProcesses.push(child);
+
+  const stderrChunks: Buffer[] = [];
+  child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
+
+  try {
+    await waitForHttpOk(`http://127.0.0.1:${port}/health`);
+
+    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`));
+    const client = new Client({ name: "task-notes-mcp-http-test", version: "0.1.0" });
+    await client.connect(transport);
+
+    try {
+      return await fn(client);
+    } finally {
+      await client.close();
+    }
+  } catch (error) {
+    const stderr = Buffer.concat(stderrChunks).toString("utf8");
+    throw new Error(`${String(error)}\nserver stderr:\n${stderr}`);
+  } finally {
+    child.kill();
+  }
+}
+
 afterEach(async () => {
+  for (const child of childProcesses.splice(0)) {
+    if (!child.killed) child.kill();
+  }
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-describe("task-notes-mcp stdio contract", () => {
+describe("task-notes-mcp contract", () => {
   it("exposes the expected read-only task note tools", async () => {
     await withMcpClient(async (client) => {
       const tools = await client.listTools();
@@ -254,4 +331,17 @@ describe("task-notes-mcp stdio contract", () => {
       });
     });
   });
+
+  it("exposes task note tools over Streamable HTTP", async () => {
+    await withHttpMcpClient(async (client) => {
+      const tools = await client.listTools();
+
+      expect(tools.tools.map((tool) => tool.name)).toEqual([
+        "list_task_notes",
+        "get_task_note",
+        "create_task_note",
+        "update_task_status",
+      ]);
+    });
+  }, 10000);
 });
