@@ -13,6 +13,7 @@ export type TaskNote = {
 
 export type TaskNotesDb = {
   list(): TaskNote[];
+  get(id: number): TaskNote | undefined;
 };
 
 function seedData(db: Database.Database) {
@@ -57,6 +58,13 @@ export function openDb(databaseUrl: string): TaskNotesDb {
         from task_notes
         order by id asc
       `).all() as TaskNote[];
+    },
+    get(id: number) {
+      return db.prepare(`
+        select id, title, body, status, created_at, updated_at
+        from task_notes
+        where id = ?
+      `).get(id) as TaskNote | undefined;
     },
   };
 }

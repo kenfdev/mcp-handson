@@ -14,6 +14,13 @@ export const toolPolicies = {
     destructive: false,
     sideEffect: "none",
   },
+  get_task_note: {
+    name: "get_task_note",
+    requiredScopes: ["task_notes:read"],
+    readOnly: true,
+    destructive: false,
+    sideEffect: "none",
+  },
 } satisfies Record<string, ToolPolicy>;
 
 export type ToolName = keyof typeof toolPolicies;

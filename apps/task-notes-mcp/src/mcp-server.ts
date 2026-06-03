@@ -14,6 +14,13 @@ function asJsonText(data: unknown) {
   };
 }
 
+function notFound(message: string) {
+  return {
+    isError: true,
+    content: [{ type: "text" as const, text: message }],
+  };
+}
+
 export function createTaskNotesMcpServer(repo: TaskNotesRepository) {
   const server = new McpServer({
     name: "task-notes-mcp",
@@ -39,6 +46,29 @@ export function createTaskNotesMcpServer(repo: TaskNotesRepository) {
     async ({ status }) => {
       const notes = repo.list().filter((note) => (status ? note.status === status : true));
       return asJsonText({ notes });
+    },
+  );
+
+  server.registerTool(
+    "get_task_note",
+    {
+      title: "Get Task Note",
+      description: "Get one task note by id. Requires task_notes:read. Read-only and side-effect free.",
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("Task note id"),
+      }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+      _meta: {
+        policy: toolPolicies.get_task_note,
+      },
+    },
+    async ({ id }) => {
+      const note = repo.get(id);
+      if (!note) return notFound(`Task note ${id} was not found.`);
+      return asJsonText({ note });
     },
   );
 
