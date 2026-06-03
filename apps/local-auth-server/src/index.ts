@@ -9,7 +9,12 @@ const DEV_USER = {
   password: "password",
 };
 
+const jwks = process.env.TEST_SIGNING_PRIVATE_JWK
+  ? { keys: [JSON.parse(process.env.TEST_SIGNING_PRIVATE_JWK)] }
+  : undefined;
+
 const provider = new Provider(issuer, {
+  jwks,
   clients: [
     {
       client_id: "task-notes-dev-client",

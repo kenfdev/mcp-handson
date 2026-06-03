@@ -43,7 +43,7 @@ flowchart TD
   B -->|/mcp| D[Create McpServer]
   D --> E[StreamableHTTPServerTransport]
   E --> F[handleRequest]
-  F --> G[MCP tools/list response]
+  F --> G["MCP tools/list response"]
   B -->|other| H[404 JSON]
 ```
 

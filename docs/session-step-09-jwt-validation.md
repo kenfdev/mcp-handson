@@ -34,12 +34,12 @@ GREEN では `jose` を direct dependency に追加し、JWT verification module
 
 ```mermaid
 flowchart TD
-  A[POST /mcp] --> B{Bearer token present?}
+  A["POST /mcp"] --> B{Bearer token present?}
   B -->|No| C[401 missing token]
   B -->|Yes| D[jose jwtVerify]
   D -->|invalid| E[401 invalid token]
   D -->|valid| F[StreamableHTTPServerTransport]
-  D --> G[issuer / audience / JWKS]
+  D --> G["issuer / audience / JWKS"]
 ```
 
 追加したもの:

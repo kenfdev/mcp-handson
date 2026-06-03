@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 
 const tempDirs: string[] = [];
 const childProcesses: ChildProcess[] = [];
@@ -83,7 +84,11 @@ async function withMcpClient<T>(
 
 async function withHttpServer<T>(
   fn: (baseUrl: string) => Promise<T>,
-  options: { jwtValidation?: "enabled" | "disabled" } = {},
+  options: {
+    authIssuer?: string;
+    authJwksUrl?: string;
+    jwtValidation?: "enabled" | "disabled";
+  } = {},
 ): Promise<T> {
   const appDir = resolve(import.meta.dirname, "..");
   const rootDir = resolve(appDir, "../..");
@@ -99,7 +104,8 @@ async function withHttpServer<T>(
       PORT: String(port),
       HOST: "127.0.0.1",
       PUBLIC_URL: baseUrl,
-      AUTH_ISSUER: "http://127.0.0.1:4000",
+      AUTH_ISSUER: options.authIssuer ?? "http://127.0.0.1:4000",
+      AUTH_JWKS_URL: options.authJwksUrl,
       AUTH_JWT_VALIDATION: options.jwtValidation ?? "enabled",
     },
     stdio: "pipe",
@@ -140,6 +146,103 @@ async function withHttpMcpClient<T>(
       await client.close();
     }
   }, { jwtValidation: "disabled" });
+}
+
+async function withHttpMcpClientUsingBearer<T>(
+  token: string,
+  auth: { issuer: string; jwksUrl: string },
+  fn: (client: Client) => Promise<T>,
+): Promise<T> {
+  return withHttpServer(async (baseUrl) => {
+    const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
+      requestInit: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
+    const client = new Client({ name: "task-notes-mcp-valid-jwt-test", version: "0.1.0" });
+    await client.connect(transport);
+
+    try {
+      return await fn(client);
+    } finally {
+      await client.close();
+    }
+  }, {
+    authIssuer: auth.issuer,
+    authJwksUrl: auth.jwksUrl,
+  });
+}
+
+async function withAuthServer<T>(
+  issuer: string,
+  signingPrivateJwk: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const rootDir = resolve(import.meta.dirname, "../../..");
+  const port = new URL(issuer).port;
+  const child = spawn("pnpm", ["--filter", "local-auth-server", "dev"], {
+    cwd: rootDir,
+    env: {
+      ...process.env,
+      ISSUER: issuer,
+      PORT: port,
+      TEST_SIGNING_PRIVATE_JWK: signingPrivateJwk,
+    },
+    stdio: "pipe",
+  });
+  childProcesses.push(child);
+
+  const stderrChunks: Buffer[] = [];
+  child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
+
+  try {
+    await waitForHttpOk(`${issuer}/.well-known/openid-configuration`);
+    return await fn();
+  } catch (error) {
+    const stderr = Buffer.concat(stderrChunks).toString("utf8");
+    throw new Error(`${String(error)}\nserver stderr:\n${stderr}`);
+  } finally {
+    child.kill();
+  }
+}
+
+async function createSignedTaskNotesJwt(issuer: string, scopes: string[]) {
+  const { privateKey } = await generateKeyPair("RS256", { extractable: true });
+  const privateJwk = await exportJWK(privateKey);
+  privateJwk.alg = "RS256";
+  privateJwk.use = "sig";
+  privateJwk.kid = "task-notes-test-key";
+
+  const token = await new SignJWT({
+    scope: scopes.join(" "),
+  })
+    .setProtectedHeader({ alg: "RS256", kid: privateJwk.kid })
+    .setIssuer(issuer)
+    .setAudience("task-notes-mcp")
+    .setSubject("dev-user-1")
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .sign(privateKey);
+
+  return {
+    token,
+    signingPrivateJwk: JSON.stringify(privateJwk),
+  };
+}
+
+async function createTrustedJwtFixture(scopes: string[]) {
+  const authPort = await getAvailablePort();
+  const issuer = `http://127.0.0.1:${authPort}`;
+  const { token, signingPrivateJwk } = await createSignedTaskNotesJwt(issuer, scopes);
+
+  return {
+    issuer,
+    jwksUrl: `${issuer}/jwks`,
+    signingPrivateJwk,
+    token,
+  };
 }
 
 afterEach(async () => {
@@ -431,4 +534,21 @@ describe("task-notes-mcp contract", () => {
       });
     });
   }, 10000);
+
+  it("allows MCP tool discovery when the bearer JWT is signed by the configured auth server", async () => {
+    const trustedJwt = await createTrustedJwtFixture(["task_notes:read"]);
+
+    await withAuthServer(trustedJwt.issuer, trustedJwt.signingPrivateJwk, async () => {
+      await withHttpMcpClientUsingBearer(trustedJwt.token, trustedJwt, async (client) => {
+        const tools = await client.listTools();
+
+        expect(tools.tools.map((tool) => tool.name)).toEqual([
+          "list_task_notes",
+          "get_task_note",
+          "create_task_note",
+          "update_task_status",
+        ]);
+      });
+    });
+  }, 15000);
 });
