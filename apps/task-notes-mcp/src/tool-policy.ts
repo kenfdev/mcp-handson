@@ -28,6 +28,13 @@ export const toolPolicies = {
     destructive: false,
     sideEffect: "create",
   },
+  update_task_status: {
+    name: "update_task_status",
+    requiredScopes: ["task_notes:write"],
+    readOnly: false,
+    destructive: false,
+    sideEffect: "update",
+  },
 } satisfies Record<string, ToolPolicy>;
 
 export type ToolName = keyof typeof toolPolicies;

@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
+import type { TaskStatus } from "./db.js";
 import type { TaskNotesRepository } from "./repository.js";
 import { toolPolicies } from "./tool-policy.js";
 
@@ -91,6 +92,30 @@ export function createTaskNotesMcpServer(repo: TaskNotesRepository) {
     },
     async ({ title, body }) => {
       const note = repo.create({ title, body });
+      return asJsonText({ note });
+    },
+  );
+
+  server.registerTool(
+    "update_task_status",
+    {
+      title: "Update Task Status",
+      description: "Update a task note status. Requires task_notes:write. Updates durable data.",
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("Task note id"),
+        status: z.enum(["open", "done", "archived"]),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+      },
+      _meta: {
+        policy: toolPolicies.update_task_status,
+      },
+    },
+    async ({ id, status }: { id: number; status: TaskStatus }) => {
+      const note = repo.updateStatus(id, status);
+      if (!note) return notFound(`Task note ${id} was not found.`);
       return asJsonText({ note });
     },
   );

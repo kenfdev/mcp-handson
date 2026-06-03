@@ -63,6 +63,7 @@ describe("task-notes-mcp stdio contract", () => {
         "list_task_notes",
         "get_task_note",
         "create_task_note",
+        "update_task_status",
       ]);
 
       const getTaskNote = tools.tools.find((tool) => tool.name === "get_task_note");
@@ -103,6 +104,23 @@ describe("task-notes-mcp stdio contract", () => {
             readOnly: false,
             destructive: false,
             sideEffect: "create",
+          },
+        },
+      });
+
+      const updateTaskStatus = tools.tools.find((tool) => tool.name === "update_task_status");
+      expect(updateTaskStatus).toMatchObject({
+        title: "Update Task Status",
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+        },
+        _meta: {
+          policy: {
+            requiredScopes: ["task_notes:write"],
+            readOnly: false,
+            destructive: false,
+            sideEffect: "update",
           },
         },
       });
@@ -201,6 +219,38 @@ describe("task-notes-mcp stdio contract", () => {
       expect(fetchedPayload.note).toMatchObject({
         id: createdPayload.note.id,
         title: "Write MCP contract tests",
+      });
+    });
+  });
+
+  it("updates a task note status and makes the new status readable by id", async () => {
+    await withMcpClient(async (client) => {
+      const updated = await client.callTool({
+        name: "update_task_status",
+        arguments: { id: 1, status: "done" },
+      });
+
+      expect(updated.isError).not.toBe(true);
+      const updatedPayload = JSON.parse(firstTextContent(updated)) as {
+        note: { id: number; status: string };
+      };
+      expect(updatedPayload.note).toMatchObject({
+        id: 1,
+        status: "done",
+      });
+
+      const fetched = await client.callTool({
+        name: "get_task_note",
+        arguments: { id: 1 },
+      });
+
+      expect(fetched.isError).not.toBe(true);
+      const fetchedPayload = JSON.parse(firstTextContent(fetched)) as {
+        note: { id: number; status: string };
+      };
+      expect(fetchedPayload.note).toMatchObject({
+        id: 1,
+        status: "done",
       });
     });
   });
