@@ -36,7 +36,7 @@ GREEN では `/mcp` の入口で `Authorization: Bearer ...` が無い request �
 
 ```mermaid
 flowchart TD
-  A[POST /mcp] --> B{Authorization starts with Bearer?}
+  A["POST /mcp"] --> B{Authorization starts with Bearer?}
   B -->|No| C[401 Unauthorized]
   C --> D[WWW-Authenticate with resource_metadata]
   B -->|Yes| E[StreamableHTTPServerTransport]

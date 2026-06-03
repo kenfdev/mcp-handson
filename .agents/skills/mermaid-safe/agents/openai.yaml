@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mermaid Safe"
+  short_description: "Write GitHub-safe Mermaid diagrams"
+  default_prompt: "Review and fix Mermaid diagrams so they render in GitHub."

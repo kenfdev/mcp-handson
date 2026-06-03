@@ -51,7 +51,7 @@ response は次の形です。
 ```mermaid
 flowchart TD
   A[MCP client] --> B[GET protected resource metadata]
-  B --> C[resource: /mcp]
+  B --> C["resource: /mcp"]
   B --> D[authorization_servers]
   B --> E[scopes_supported]
   D --> F[future local auth server]
