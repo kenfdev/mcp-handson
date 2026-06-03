@@ -93,7 +93,7 @@ codex exec \
 
 What to look for:
 
-- Codex should discover the `task-notes-handson` server.
+- Codex should discover the `task_notes_handson` server.
 - The model should call `list_task_notes`.
 - The model should call `get_task_note` with `id: 1`.
 - The answer should mention the returned seed notes.
