@@ -122,7 +122,13 @@ async function withHttpMcpClient<T>(
   fn: (client: Client) => Promise<T>,
 ): Promise<T> {
   return withHttpServer(async (baseUrl) => {
-    const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`));
+    const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
+      requestInit: {
+        headers: {
+          Authorization: "Bearer integration-test-token",
+        },
+      },
+    });
     const client = new Client({ name: "task-notes-mcp-http-test", version: "0.1.0" });
     await client.connect(transport);
 
@@ -365,6 +371,33 @@ describe("task-notes-mcp contract", () => {
         resource: `${baseUrl}/mcp`,
         authorization_servers: ["http://127.0.0.1:4000"],
         scopes_supported: ["task_notes:read", "task_notes:write"],
+      });
+    });
+  }, 10000);
+
+  it("rejects unauthenticated Streamable HTTP MCP requests with resource metadata", async () => {
+    await withHttpServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toBe(
+        `Bearer realm="mcp", resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
+      );
+      await expect(response.json()).resolves.toEqual({
+        error: "unauthorized",
+        message: "A valid bearer token is required.",
       });
     });
   }, 10000);
