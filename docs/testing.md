@@ -42,32 +42,53 @@ The test covers:
 
 This is not a unit test. It uses the actual stdio transport and actual SQLite storage.
 
-## 2. Real Codex client test
+## 2. Real LLM client test
 
-You can also register this server with Codex and ask the LLM to use it.
+The repository includes a project-local `.mcp.json`:
 
-Register the stdio MCP server:
-
-```bash
-codex mcp add task-notes-handson \
-  --env DATABASE_URL=file:/tmp/task-notes-handson-codex.db \
-  -- pnpm --dir /Users/fukuyamaken/ghq/github.com/kenfdev/mcp-handson \
-  --filter task-notes-mcp dev:stdio
+```json
+{
+  "mcpServers": {
+    "task_notes_handson": {
+      "command": "pnpm",
+      "args": ["--filter", "task-notes-mcp", "dev:stdio"],
+      "env": {
+        "DATABASE_URL": "file:./apps/task-notes-mcp/task-notes.mcp.db"
+      }
+    }
+  }
+}
 ```
 
-Confirm Codex sees it:
+Use this project-local config instead of adding the server to `~/.codex/config.toml`.
+
+Confirm the global Codex config does not contain this server:
 
 ```bash
 codex mcp list
-codex mcp get task-notes-handson
 ```
 
-Then run a real LLM prompt:
+If your LLM client supports project `.mcp.json`, open or run it from the repository root and ask it to use `task_notes_handson`.
+
+Example prompt:
+
+```text
+Use the task_notes_handson MCP server. List the task notes, then get task note id 1. Explain which MCP tools you used.
+```
+
+Current Codex CLI note:
+
+As of the Codex CLI used in this session, `codex exec --cd <repo>` did not auto-load `.mcp.json`. To test with Codex without writing to `~/.codex/config.toml`, pass the MCP server as one-shot config overrides:
 
 ```bash
 codex exec \
   --cd /Users/fukuyamaken/ghq/github.com/kenfdev/mcp-handson \
-  'Use the task-notes-handson MCP server. List the task notes, then get task note id 1. Explain which MCP tools you used.'
+  --dangerously-bypass-approvals-and-sandbox \
+  -c 'mcp_servers.task_notes_handson.command="pnpm"' \
+  -c 'mcp_servers.task_notes_handson.args=["--dir","/Users/fukuyamaken/ghq/github.com/kenfdev/mcp-handson","--filter","task-notes-mcp","dev:stdio"]' \
+  -c 'mcp_servers.task_notes_handson.env={DATABASE_URL="file:/tmp/task-notes-handson-codex-oneshot.db"}' \
+  -c 'mcp_servers.task_notes_handson.startup_timeout_sec=60' \
+  'Use the task_notes_handson MCP server. List the task notes, then get task note id 1. Explain which MCP tools you used.'
 ```
 
 What to look for:
@@ -82,16 +103,10 @@ This validates client compatibility at the LLM-agent layer. It is slower and les
 Observed result in this session:
 
 ```text
-mcp: task-notes-handson/get_task_note started
-mcp: task-notes-handson/list_task_notes started
-mcp: task-notes-handson/list_task_notes (completed)
-mcp: task-notes-handson/get_task_note (completed)
+mcp: task_notes_handson/list_task_notes started
+mcp: task_notes_handson/get_task_note started
+mcp: task_notes_handson/list_task_notes (completed)
+mcp: task_notes_handson/get_task_note (completed)
 ```
 
 Codex answered with the seeded notes and explicitly said it used `list_task_notes` and `get_task_note`.
-
-Remove the server when you no longer need it:
-
-```bash
-codex mcp remove task-notes-handson
-```
