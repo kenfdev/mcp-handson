@@ -551,4 +551,23 @@ describe("task-notes-mcp contract", () => {
       });
     });
   }, 15000);
+
+  it("rejects write tool calls when the trusted bearer JWT only has read scope", async () => {
+    const readOnlyJwt = await createTrustedJwtFixture(["task_notes:read"]);
+
+    await withAuthServer(readOnlyJwt.issuer, readOnlyJwt.signingPrivateJwk, async () => {
+      await withHttpMcpClientUsingBearer(readOnlyJwt.token, readOnlyJwt, async (client) => {
+        const result = await client.callTool({
+          name: "create_task_note",
+          arguments: {
+            title: "Should not be created",
+            body: "A read-only token must not be allowed to create durable task notes.",
+          },
+        });
+
+        expect(result.isError).toBe(true);
+        expect(firstTextContent(result)).toContain("Missing required scope: task_notes:write");
+      });
+    });
+  }, 15000);
 });
