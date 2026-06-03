@@ -1,4 +1,4 @@
-import type { TaskNote, TaskNotesDb } from "./db.js";
+import type { TaskNote, TaskNotesDb, TaskStatus } from "./db.js";
 
 export class TaskNotesRepository {
   constructor(private readonly db: TaskNotesDb) {}
@@ -13,5 +13,9 @@ export class TaskNotesRepository {
 
   create(input: { title: string; body: string }): TaskNote {
     return this.db.create(input);
+  }
+
+  updateStatus(id: number, status: TaskStatus): TaskNote | undefined {
+    return this.db.updateStatus(id, status);
   }
 }

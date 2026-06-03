@@ -15,6 +15,7 @@ export type TaskNotesDb = {
   list(): TaskNote[];
   get(id: number): TaskNote | undefined;
   create(input: { title: string; body: string }): TaskNote;
+  updateStatus(id: number, status: TaskStatus): TaskNote | undefined;
 };
 
 function seedData(db: Database.Database) {
@@ -75,6 +76,16 @@ export function openDb(databaseUrl: string): TaskNotesDb {
       `).run(input.title, input.body, now, now);
 
       return this.get(Number(result.lastInsertRowid))!;
+    },
+    updateStatus(id: number, status: TaskStatus) {
+      const now = new Date().toISOString();
+      db.prepare(`
+        update task_notes
+        set status = ?, updated_at = ?
+        where id = ?
+      `).run(status, now, id);
+
+      return this.get(id);
     },
   };
 }
