@@ -10,4 +10,8 @@ export class TaskNotesRepository {
   get(id: number): TaskNote | undefined {
     return this.db.get(id);
   }
+
+  create(input: { title: string; body: string }): TaskNote {
+    return this.db.create(input);
+  }
 }
