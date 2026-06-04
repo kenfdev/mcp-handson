@@ -43,6 +43,8 @@ export function createTaskNotesMcpServer(
       description: "List task notes. Requires task_notes:read. Read-only and side-effect free.",
       inputSchema: z.object({
         status: z.enum(["open", "done", "archived"]).optional().describe("Optional status filter"),
+        limit: z.number().int().min(1).max(100).default(50).describe("Maximum number of notes to return"),
+        offset: z.number().int().min(0).default(0).describe("Number of matching notes to skip"),
       }),
       annotations: {
         readOnlyHint: true,
@@ -52,10 +54,19 @@ export function createTaskNotesMcpServer(
         policy: toolPolicies.list_task_notes,
       },
     },
-    async ({ status }) => {
+    async ({ status, limit, offset }) => {
       await authorize(auth, "list_task_notes");
-      const notes = repo.list().filter((note) => (status ? note.status === status : true));
-      return asJsonText({ notes });
+      const matchingNotes = repo.list().filter((note) => (status ? note.status === status : true));
+      const notes = matchingNotes.slice(offset, offset + limit);
+      return asJsonText({
+        notes,
+        page: {
+          limit,
+          offset,
+          total: matchingNotes.length,
+          hasMore: offset + limit < matchingNotes.length,
+        },
+      });
     },
   );
 
