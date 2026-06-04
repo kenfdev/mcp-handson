@@ -54,6 +54,49 @@ export function createTaskNotesMcpServer(
     version: "0.1.0",
   });
 
+  server.registerResource(
+    "task-notes-summary",
+    "task-notes://summary",
+    {
+      title: "Task Notes Summary",
+      description:
+        "Read-only current task note counts grouped by status. Use this when answering questions about overall task progress or workload.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      await authorize(auth, "list_task_notes");
+      const notes = repo.list();
+      const byStatus: Record<TaskStatus, number> = {
+        open: 0,
+        done: 0,
+        archived: 0,
+      };
+
+      for (const note of notes) {
+        byStatus[note.status] += 1;
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(
+              {
+                summary: {
+                  total: notes.length,
+                  byStatus,
+                },
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
   server.registerTool(
     "list_task_notes",
     {
