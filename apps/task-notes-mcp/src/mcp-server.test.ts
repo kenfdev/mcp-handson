@@ -22,6 +22,10 @@ function firstTextContent(result: { content?: unknown }): string {
   return first.text as string;
 }
 
+function parseJsonText<T>(result: { content?: unknown }): T {
+  return JSON.parse(firstTextContent(result)) as T;
+}
+
 async function createTempDatabaseUrl() {
   const dir = await mkdtemp(join(tmpdir(), "task-notes-mcp-test-"));
   tempDirs.push(dir);
@@ -457,15 +461,35 @@ describe("task-notes-mcp contract", () => {
     });
   });
 
-  it("returns a domain not-found error for a missing positive id", async () => {
+  it("returns a machine-readable not-found error for a missing task note", async () => {
     await withSeededMcpClient(async (client) => {
+      const missingTaskNoteId = 9999;
       const result = await client.callTool({
         name: "get_task_note",
-        arguments: { id: 9999 },
+        arguments: { id: missingTaskNoteId },
       });
 
       expect(result.isError).toBe(true);
-      expect(firstTextContent(result)).toBe("Task note 9999 was not found.");
+      const payload = parseJsonText<{
+        error: {
+          code: string;
+          message: string;
+          details: {
+            resource: string;
+            id: number;
+          };
+        };
+      }>(result);
+      expect(payload).toEqual({
+        error: {
+          code: "TASK_NOTE_NOT_FOUND",
+          message: `Task note ${missingTaskNoteId} was not found.`,
+          details: {
+            resource: "task_note",
+            id: missingTaskNoteId,
+          },
+        },
+      });
     });
   });
 

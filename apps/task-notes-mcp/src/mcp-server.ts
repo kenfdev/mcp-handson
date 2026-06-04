@@ -16,10 +16,28 @@ function asJsonText(data: unknown) {
   };
 }
 
-function notFound(message: string) {
+function taskNoteNotFound(id: number) {
   return {
     isError: true,
-    content: [{ type: "text" as const, text: message }],
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify(
+          {
+            error: {
+              code: "TASK_NOTE_NOT_FOUND",
+              message: `Task note ${id} was not found.`,
+              details: {
+                resource: "task_note",
+                id,
+              },
+            },
+          },
+          null,
+          2,
+        ),
+      },
+    ],
   };
 }
 
@@ -89,7 +107,7 @@ export function createTaskNotesMcpServer(
     async ({ id }) => {
       await authorize(auth, "get_task_note");
       const note = repo.get(id);
-      if (!note) return notFound(`Task note ${id} was not found.`);
+      if (!note) return taskNoteNotFound(id);
       return asJsonText({ note });
     },
   );
@@ -138,7 +156,7 @@ export function createTaskNotesMcpServer(
     async ({ id, status }: { id: number; status: TaskStatus }) => {
       await authorize(auth, "update_task_status");
       const note = repo.updateStatus(id, status);
-      if (!note) return notFound(`Task note ${id} was not found.`);
+      if (!note) return taskNoteNotFound(id);
       return asJsonText({ note });
     },
   );
