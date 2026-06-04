@@ -106,16 +106,19 @@ What to look for:
 
 This validates client compatibility at the LLM-agent layer. It is slower and less deterministic than the Vitest integration test, so use it as a smoke test rather than the primary regression suite.
 
-Observed result in this session:
+Observed result in this session with Codex CLI 0.136.0:
 
 ```text
-mcp: task_notes_handson/list_task_notes started
 mcp: task_notes_handson/get_task_note started
-mcp: task_notes_handson/list_task_notes (completed)
+mcp: task_notes_handson/list_task_notes started
 mcp: task_notes_handson/get_task_note (completed)
+mcp: task_notes_handson/list_task_notes (completed)
 ```
 
-Codex answered with the seeded notes and explicitly said it used `list_task_notes` and `get_task_note`.
+Codex answered with the seeded notes and explicitly said it used:
+
+- `mcp__task_notes_handson.list_task_notes`
+- `mcp__task_notes_handson.get_task_note` with `{ "id": 1 }`
 
 ## 3. Codex CLI with the HTTP MCP server
 
@@ -154,3 +157,18 @@ The answer should list these tools:
 - `create_task_note`
 - `get_task_note`
 - `update_task_status`
+
+Observed result in this session with Codex CLI 0.136.0 and a project HTTP server already listening on `127.0.0.1:3000`:
+
+```text
+mcp: task_notes_handson_http/list_task_notes started
+mcp: task_notes_handson_http/list_task_notes (completed)
+```
+
+Codex answered with the four task note tools and the two seeded task notes.
+
+If Codex reports `AuthRequired` for the HTTP server, the client reached the MCP endpoint but did not complete authorization. That is expected for a protected HTTP MCP endpoint unless the client can perform the OAuth flow or provide an accepted bearer token. In that case:
+
+- use the stdio smoke test for basic Codex tool compatibility
+- use MCP Inspector or another OAuth-capable client for the protected HTTP flow
+- confirm `/.well-known/oauth-protected-resource` and the auth server discovery endpoints first
