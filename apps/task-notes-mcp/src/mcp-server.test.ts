@@ -12,6 +12,7 @@ import { exportJWK, generateKeyPair, SignJWT } from "jose";
 const tempDirs: string[] = [];
 const childProcesses: ChildProcess[] = [];
 const SEEDED_TASK_NOTE_COUNT = 2;
+const SEEDED_OPEN_TASK_NOTE_COUNT = 2;
 
 function firstTextContent(result: { content?: unknown }): string {
   const content = result.content;
@@ -24,6 +25,18 @@ function firstTextContent(result: { content?: unknown }): string {
 
 function parseJsonText<T>(result: { content?: unknown }): T {
   return JSON.parse(firstTextContent(result)) as T;
+}
+
+function firstResourceTextContent(result: { contents?: unknown }): string {
+  const contents = result.contents;
+  expect(Array.isArray(contents)).toBe(true);
+  const [first] = contents as Array<{ text?: unknown }>;
+  expect(typeof first?.text).toBe("string");
+  return first.text as string;
+}
+
+function parseResourceJsonText<T>(result: { contents?: unknown }): T {
+  return JSON.parse(firstResourceTextContent(result)) as T;
 }
 
 async function createTempDatabaseUrl() {
@@ -381,6 +394,48 @@ describe("task-notes-mcp contract", () => {
             readOnly: false,
             destructive: false,
             sideEffect: "update",
+          },
+        },
+      });
+    });
+  });
+
+  it("exposes a task notes summary resource for read-only context", async () => {
+    await withSeededMcpClient(async (client) => {
+      const resources = await client.listResources();
+
+      expect(resources.resources).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            uri: "task-notes://summary",
+            name: "task-notes-summary",
+            title: "Task Notes Summary",
+            description:
+              "Read-only current task note counts grouped by status. Use this when answering questions about overall task progress or workload.",
+            mimeType: "application/json",
+          }),
+        ]),
+      );
+
+      const result = await client.readResource({ uri: "task-notes://summary" });
+      const payload = parseResourceJsonText<{
+        summary: {
+          total: number;
+          byStatus: {
+            open: number;
+            done: number;
+            archived: number;
+          };
+        };
+      }>(result);
+
+      expect(payload).toEqual({
+        summary: {
+          total: SEEDED_TASK_NOTE_COUNT,
+          byStatus: {
+            open: SEEDED_OPEN_TASK_NOTE_COUNT,
+            done: 0,
+            archived: 0,
           },
         },
       });
