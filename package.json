@@ -9,7 +9,10 @@
   },
   "scripts": {
     "build": "pnpm -r build",
+    "compose:up": "docker compose up --build",
+    "compose:down": "docker compose down -v",
     "dev:auth": "pnpm --filter local-auth-server dev",
+    "dev:mcp:http": "pnpm --filter task-notes-mcp dev:http",
     "dev:mcp:stdio": "pnpm --filter task-notes-mcp dev:stdio"
   },
   "devDependencies": {

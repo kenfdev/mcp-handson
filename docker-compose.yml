@@ -1,0 +1,51 @@
+services:
+  traefik:
+    image: traefik:v3
+    ports:
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./infra/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./infra/certs:/certs:ro
+
+  auth:
+    build:
+      context: .
+      dockerfile: apps/local-auth-server/Dockerfile
+    environment:
+      PORT: "3000"
+      ISSUER: https://auth.localhost
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.auth.rule=Host(`auth.localhost`)
+      - traefik.http.routers.auth.entrypoints=websecure
+      - traefik.http.routers.auth.tls=true
+      - traefik.http.services.auth.loadbalancer.server.port=3000
+
+  mcp:
+    build:
+      context: .
+      dockerfile: apps/task-notes-mcp/Dockerfile
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      PUBLIC_URL: https://mcp.localhost
+      AUTH_ISSUER: https://auth.localhost
+      AUTH_AUDIENCE: task-notes-mcp
+      AUTH_JWKS_URL: http://auth:3000/jwks
+      DATABASE_URL: file:/data/task-notes.db
+    volumes:
+      - task-notes-data:/data
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.mcp.rule=Host(`mcp.localhost`)
+      - traefik.http.routers.mcp.entrypoints=websecure
+      - traefik.http.routers.mcp.tls=true
+      - traefik.http.services.mcp.loadbalancer.server.port=3000
+    depends_on:
+      - auth
+
+volumes:
+  task-notes-data:
