@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { verifyBearerToken } from "./auth.js";
+import { createDevelopmentAuthProvider, createRequestAuthProvider, verifyBearerToken } from "./auth.js";
 import { openDb } from "./db.js";
 import { createTaskNotesMcpServer } from "./mcp-server.js";
 import { TaskNotesRepository } from "./repository.js";
@@ -53,14 +53,17 @@ const httpServer = createServer(async (request, response) => {
       return;
     }
 
+    let authProvider = createDevelopmentAuthProvider();
+
     if (jwtValidationEnabled) {
       const token = request.headers.authorization.slice("Bearer ".length);
       try {
-        await verifyBearerToken(token, {
+        const authContext = await verifyBearerToken(token, {
           issuer: authIssuer,
           audience: authAudience,
           jwksUrl: authJwksUrl,
         });
+        authProvider = createRequestAuthProvider(authContext);
       } catch {
         response.writeHead(401, {
           "Content-Type": "application/json",
@@ -74,7 +77,7 @@ const httpServer = createServer(async (request, response) => {
       }
     }
 
-    const mcpServer = createTaskNotesMcpServer(repo);
+    const mcpServer = createTaskNotesMcpServer(repo, authProvider);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
     });

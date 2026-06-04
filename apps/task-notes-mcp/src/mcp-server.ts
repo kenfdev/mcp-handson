@@ -1,8 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
+import { createDevelopmentAuthProvider, type AuthProvider } from "./auth.js";
 import type { TaskStatus } from "./db.js";
 import type { TaskNotesRepository } from "./repository.js";
-import { toolPolicies } from "./tool-policy.js";
+import { toolPolicies, type ToolName } from "./tool-policy.js";
 
 function asJsonText(data: unknown) {
   return {
@@ -22,7 +23,14 @@ function notFound(message: string) {
   };
 }
 
-export function createTaskNotesMcpServer(repo: TaskNotesRepository) {
+async function authorize(auth: AuthProvider, toolName: ToolName) {
+  await auth.requireToolScopes(toolName);
+}
+
+export function createTaskNotesMcpServer(
+  repo: TaskNotesRepository,
+  auth: AuthProvider = createDevelopmentAuthProvider(),
+) {
   const server = new McpServer({
     name: "task-notes-mcp",
     version: "0.1.0",
@@ -45,6 +53,7 @@ export function createTaskNotesMcpServer(repo: TaskNotesRepository) {
       },
     },
     async ({ status }) => {
+      await authorize(auth, "list_task_notes");
       const notes = repo.list().filter((note) => (status ? note.status === status : true));
       return asJsonText({ notes });
     },
@@ -67,6 +76,7 @@ export function createTaskNotesMcpServer(repo: TaskNotesRepository) {
       },
     },
     async ({ id }) => {
+      await authorize(auth, "get_task_note");
       const note = repo.get(id);
       if (!note) return notFound(`Task note ${id} was not found.`);
       return asJsonText({ note });
@@ -91,6 +101,7 @@ export function createTaskNotesMcpServer(repo: TaskNotesRepository) {
       },
     },
     async ({ title, body }) => {
+      await authorize(auth, "create_task_note");
       const note = repo.create({ title, body });
       return asJsonText({ note });
     },
@@ -114,6 +125,7 @@ export function createTaskNotesMcpServer(repo: TaskNotesRepository) {
       },
     },
     async ({ id, status }: { id: number; status: TaskStatus }) => {
+      await authorize(auth, "update_task_status");
       const note = repo.updateStatus(id, status);
       if (!note) return notFound(`Task note ${id} was not found.`);
       return asJsonText({ note });
