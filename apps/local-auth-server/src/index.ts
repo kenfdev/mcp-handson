@@ -56,6 +56,8 @@ const provider = new Provider(issuer, {
   },
 } as never);
 
+provider.proxy = true;
+
 provider.listen(port, () => {
   console.log(`local-auth-server listening on ${issuer}`);
 });

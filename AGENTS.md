@@ -114,7 +114,7 @@ If a real LLM client smoke test was run, include that result too.
 
 Always create a new branch from `main` for each task before changing files.
 
-Use TDD for feature work:
+Use TDD only for production code changes that introduce or change observable application/MCP behavior.
 
 1. Write one focused integration test for the next observable MCP behavior.
 2. Run the test and confirm it fails for the expected reason.
@@ -124,3 +124,5 @@ Use TDD for feature work:
 6. Run the integration test and `pnpm build`.
 
 Prefer integration tests through the MCP public interface over narrow unit tests. Avoid fine-grained tests that couple to private implementation details.
+
+Do not force TDD onto non-code artifacts such as documentation, GitHub workflow notes, agent skills, Docker Compose files, Traefik configuration, `.gitignore`, or other project configuration. For those, make the smallest clear change and verify it with the relevant checker or command, such as `docker compose config`, skill validation, Mermaid risky-label search, or the normal project build/tests when applicable.

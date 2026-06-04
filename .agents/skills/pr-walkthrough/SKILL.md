@@ -21,7 +21,9 @@ Before editing, run `rtk git status -sb` and keep unrelated local files out of t
 
 ## TDD Rule
 
-For feature work, use a RED/GREEN loop:
+Use TDD only for production code changes that introduce or change observable MCP/application behavior.
+
+For those code changes, use a RED/GREEN loop:
 
 1. Write one focused integration test through the MCP public interface.
 2. Run it and confirm it fails for the expected reason.
@@ -30,7 +32,9 @@ For feature work, use a RED/GREEN loop:
 5. Implement the minimum production code required to pass.
 6. Run the integration test and build.
 
-Prefer effective integration tests over narrow unit tests that couple to private implementation details. For non-feature project maintenance, use the most relevant validator plus the normal project tests.
+Prefer effective integration tests over narrow unit tests that couple to private implementation details.
+
+Do not force TDD onto non-code artifacts such as docs, agent skills, GitHub workflow notes, Docker Compose files, Traefik config, `.gitignore`, or other project configuration. For those changes, make the smallest clear edit and verify it with the relevant checker or command, such as `docker compose config`, skill validation, Mermaid risky-label search, or the normal project build/tests when applicable.
 
 ## MCP Project Config
 
