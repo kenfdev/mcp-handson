@@ -208,7 +208,14 @@ async function withAuthServer<T>(
   }
 }
 
-async function createSignedTaskNotesJwt(issuer: string, scopes: string[]) {
+async function createSignedTaskNotesJwt(
+  issuer: string,
+  scopes: string[],
+  options: {
+    audience?: string;
+    expiresIn?: string;
+  } = {},
+) {
   const { privateKey } = await generateKeyPair("RS256", { extractable: true });
   const privateJwk = await exportJWK(privateKey);
   privateJwk.alg = "RS256";
@@ -220,10 +227,10 @@ async function createSignedTaskNotesJwt(issuer: string, scopes: string[]) {
   })
     .setProtectedHeader({ alg: "RS256", kid: privateJwk.kid })
     .setIssuer(issuer)
-    .setAudience("task-notes-mcp")
+    .setAudience(options.audience ?? "task-notes-mcp")
     .setSubject("dev-user-1")
     .setIssuedAt()
-    .setExpirationTime("5m")
+    .setExpirationTime(options.expiresIn ?? "5m")
     .sign(privateKey);
 
   return {
@@ -232,10 +239,24 @@ async function createSignedTaskNotesJwt(issuer: string, scopes: string[]) {
   };
 }
 
-async function createTrustedJwtFixture(scopes: string[]) {
+async function createTrustedJwtFixture(
+  scopes: string[],
+  options: {
+    tokenIssuer?: string;
+    audience?: string;
+    expiresIn?: string;
+  } = {},
+) {
   const authPort = await getAvailablePort();
   const issuer = `http://127.0.0.1:${authPort}`;
-  const { token, signingPrivateJwk } = await createSignedTaskNotesJwt(issuer, scopes);
+  const { token, signingPrivateJwk } = await createSignedTaskNotesJwt(
+    options.tokenIssuer ?? issuer,
+    scopes,
+    {
+      audience: options.audience,
+      expiresIn: options.expiresIn,
+    },
+  );
 
   return {
     issuer,
@@ -243,6 +264,42 @@ async function createTrustedJwtFixture(scopes: string[]) {
     signingPrivateJwk,
     token,
   };
+}
+
+async function expectRawMcpRequestWithBearerToBeRejected(
+  token: string,
+  auth: { issuer: string; jwksUrl: string; signingPrivateJwk: string },
+) {
+  await withAuthServer(auth.issuer, auth.signingPrivateJwk, async () => {
+    await withHttpServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toBe(
+        `Bearer realm="mcp", resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
+      );
+      await expect(response.json()).resolves.toEqual({
+        error: "unauthorized",
+        message: "Invalid bearer token.",
+      });
+    }, {
+      authIssuer: auth.issuer,
+      authJwksUrl: auth.jwksUrl,
+    });
+  });
 }
 
 afterEach(async () => {
@@ -535,6 +592,30 @@ describe("task-notes-mcp contract", () => {
     });
   }, 10000);
 
+  it("rejects expired bearer JWTs before handling Streamable HTTP MCP requests", async () => {
+    const expiredJwt = await createTrustedJwtFixture(["task_notes:read"], {
+      expiresIn: "-1s",
+    });
+
+    await expectRawMcpRequestWithBearerToBeRejected(expiredJwt.token, expiredJwt);
+  }, 15000);
+
+  it("rejects bearer JWTs with the wrong issuer before handling Streamable HTTP MCP requests", async () => {
+    const wrongIssuerJwt = await createTrustedJwtFixture(["task_notes:read"], {
+      tokenIssuer: "http://127.0.0.1:1",
+    });
+
+    await expectRawMcpRequestWithBearerToBeRejected(wrongIssuerJwt.token, wrongIssuerJwt);
+  }, 15000);
+
+  it("rejects bearer JWTs with the wrong audience before handling Streamable HTTP MCP requests", async () => {
+    const wrongAudienceJwt = await createTrustedJwtFixture(["task_notes:read"], {
+      audience: "wrong-audience",
+    });
+
+    await expectRawMcpRequestWithBearerToBeRejected(wrongAudienceJwt.token, wrongAudienceJwt);
+  }, 15000);
+
   it("allows MCP tool discovery when the bearer JWT is signed by the configured auth server", async () => {
     const trustedJwt = await createTrustedJwtFixture(["task_notes:read"]);
 
@@ -567,6 +648,33 @@ describe("task-notes-mcp contract", () => {
 
         expect(result.isError).toBe(true);
         expect(firstTextContent(result)).toContain("Missing required scope: task_notes:write");
+      });
+    });
+  }, 15000);
+
+  it("allows write tool calls when the trusted bearer JWT has write scope", async () => {
+    const writeJwt = await createTrustedJwtFixture(["task_notes:write"]);
+
+    await withAuthServer(writeJwt.issuer, writeJwt.signingPrivateJwk, async () => {
+      await withHttpMcpClientUsingBearer(writeJwt.token, writeJwt, async (client) => {
+        const created = await client.callTool({
+          name: "create_task_note",
+          arguments: {
+            title: "Created with write scope",
+            body: "A trusted token with task_notes:write can create durable task notes.",
+          },
+        });
+
+        expect(created.isError).not.toBe(true);
+        const payload = JSON.parse(firstTextContent(created)) as {
+          note: { id: number; title: string; body: string; status: string };
+        };
+        expect(payload.note).toMatchObject({
+          id: 3,
+          title: "Created with write scope",
+          body: "A trusted token with task_notes:write can create durable task notes.",
+          status: "open",
+        });
       });
     });
   }, 15000);
