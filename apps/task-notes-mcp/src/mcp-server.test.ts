@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 
 const tempDirs: string[] = [];
@@ -47,6 +48,21 @@ function firstPromptTextContent(result: { messages?: unknown }): string {
   expect(first.content?.type).toBe("text");
   expect(typeof first.content.text).toBe("string");
   return first.content.text as string;
+}
+
+function waitForResourceUpdated(client: Client, uri: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`Timed out waiting for resource update: ${uri}`));
+    }, 1000);
+
+    client.setNotificationHandler(ResourceUpdatedNotificationSchema, (notification) => {
+      if (notification.params.uri === uri) {
+        clearTimeout(timeout);
+        resolve(notification.params.uri);
+      }
+    });
+  });
 }
 
 async function createTempDatabaseUrl() {
@@ -478,6 +494,47 @@ describe("task-notes-mcp contract", () => {
       expect(text).toContain("Read task-notes://summary first");
       expect(text).toContain("Use list_task_notes only when the summary is not enough");
       expect(text).toContain("Focus: blocked work");
+    });
+  });
+
+  it("notifies subscribed clients when the task notes summary resource changes", async () => {
+    await withSeededMcpClient(async (client) => {
+      const summaryUri = "task-notes://summary";
+
+      await client.subscribeResource({ uri: summaryUri });
+      const updated = waitForResourceUpdated(client, summaryUri);
+      await client.callTool({
+        name: "create_task_note",
+        arguments: {
+          title: "Triage blocked work",
+          body: "Review task notes that need follow-up.",
+        },
+      });
+
+      await expect(updated).resolves.toBe(summaryUri);
+
+      const result = await client.readResource({ uri: summaryUri });
+      const payload = parseResourceJsonText<{
+        summary: {
+          total: number;
+          byStatus: {
+            open: number;
+            done: number;
+            archived: number;
+          };
+        };
+      }>(result);
+
+      expect(payload).toEqual({
+        summary: {
+          total: SEEDED_TASK_NOTE_COUNT + 1,
+          byStatus: {
+            open: SEEDED_OPEN_TASK_NOTE_COUNT + 1,
+            done: 0,
+            archived: 0,
+          },
+        },
+      });
     });
   });
 

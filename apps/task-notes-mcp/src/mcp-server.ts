@@ -1,9 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  ErrorCode,
+  McpError,
+  SubscribeRequestSchema,
+  UnsubscribeRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod/v4";
 import { createDevelopmentAuthProvider, type AuthProvider } from "./auth.js";
 import type { TaskStatus } from "./db.js";
 import type { TaskNotesRepository } from "./repository.js";
 import { toolPolicies, type ToolName } from "./tool-policy.js";
+
+const TASK_NOTES_SUMMARY_URI = "task-notes://summary";
 
 function asJsonText(data: unknown) {
   return {
@@ -53,10 +61,16 @@ export function createTaskNotesMcpServer(
     name: "task-notes-mcp",
     version: "0.1.0",
   });
+  const subscribedResourceUris = new Set<string>();
+
+  async function notifyTaskNotesSummaryChanged() {
+    if (!subscribedResourceUris.has(TASK_NOTES_SUMMARY_URI)) return;
+    await server.server.sendResourceUpdated({ uri: TASK_NOTES_SUMMARY_URI });
+  }
 
   server.registerResource(
     "task-notes-summary",
-    "task-notes://summary",
+    TASK_NOTES_SUMMARY_URI,
     {
       title: "Task Notes Summary",
       description:
@@ -96,6 +110,24 @@ export function createTaskNotesMcpServer(
       };
     },
   );
+
+  server.server.registerCapabilities({
+    resources: {
+      subscribe: true,
+    },
+  });
+  server.server.setRequestHandler(SubscribeRequestSchema, async (request) => {
+    await authorize(auth, "list_task_notes");
+    if (request.params.uri !== TASK_NOTES_SUMMARY_URI) {
+      throw new McpError(ErrorCode.InvalidParams, `Resource ${request.params.uri} is not subscribable.`);
+    }
+    subscribedResourceUris.add(request.params.uri);
+    return {};
+  });
+  server.server.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
+    subscribedResourceUris.delete(request.params.uri);
+    return {};
+  });
 
   server.registerPrompt(
     "review_task_notes",
@@ -206,6 +238,7 @@ export function createTaskNotesMcpServer(
     async ({ title, body }) => {
       await authorize(auth, "create_task_note");
       const note = repo.create({ title, body });
+      await notifyTaskNotesSummaryChanged();
       return asJsonText({ note });
     },
   );
@@ -231,6 +264,7 @@ export function createTaskNotesMcpServer(
       await authorize(auth, "update_task_status");
       const note = repo.updateStatus(id, status);
       if (!note) return taskNoteNotFound(id);
+      await notifyTaskNotesSummaryChanged();
       return asJsonText({ note });
     },
   );
