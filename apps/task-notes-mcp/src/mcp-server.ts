@@ -97,6 +97,37 @@ export function createTaskNotesMcpServer(
     },
   );
 
+  server.registerPrompt(
+    "review_task_notes",
+    {
+      title: "Review Task Notes",
+      description:
+        "Guide an assistant to review task note progress by reading the summary resource before using task note tools.",
+      argsSchema: {
+        focus: z.string().min(1).max(200).optional().describe("Optional review focus"),
+      },
+    },
+    async ({ focus }) => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: [
+              "Review the current task notes for progress, risk, and next actions.",
+              "",
+              "Read task-notes://summary first to understand the overall status counts.",
+              "Use list_task_notes only when the summary is not enough to answer the user's question.",
+              "Use get_task_note when a specific note needs closer inspection.",
+              "Do not create or update task notes unless the user explicitly asks for a change.",
+              focus ? `Focus: ${focus}` : undefined,
+            ].filter(Boolean).join("\n"),
+          },
+        },
+      ],
+    }),
+  );
+
   server.registerTool(
     "list_task_notes",
     {

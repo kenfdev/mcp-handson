@@ -39,6 +39,16 @@ function parseResourceJsonText<T>(result: { contents?: unknown }): T {
   return JSON.parse(firstResourceTextContent(result)) as T;
 }
 
+function firstPromptTextContent(result: { messages?: unknown }): string {
+  const messages = result.messages;
+  expect(Array.isArray(messages)).toBe(true);
+  const [first] = messages as Array<{ role?: unknown; content?: { type?: unknown; text?: unknown } }>;
+  expect(first?.role).toBe("user");
+  expect(first.content?.type).toBe("text");
+  expect(typeof first.content.text).toBe("string");
+  return first.content.text as string;
+}
+
 async function createTempDatabaseUrl() {
   const dir = await mkdtemp(join(tmpdir(), "task-notes-mcp-test-"));
   tempDirs.push(dir);
@@ -439,6 +449,35 @@ describe("task-notes-mcp contract", () => {
           },
         },
       });
+    });
+  });
+
+  it("exposes a task review prompt that guides resource and tool usage", async () => {
+    await withSeededMcpClient(async (client) => {
+      const prompts = await client.listPrompts();
+
+      expect(prompts.prompts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "review_task_notes",
+            title: "Review Task Notes",
+            description:
+              "Guide an assistant to review task note progress by reading the summary resource before using task note tools.",
+          }),
+        ]),
+      );
+
+      const result = await client.getPrompt({
+        name: "review_task_notes",
+        arguments: {
+          focus: "blocked work",
+        },
+      });
+      const text = firstPromptTextContent(result);
+
+      expect(text).toContain("Read task-notes://summary first");
+      expect(text).toContain("Use list_task_notes only when the summary is not enough");
+      expect(text).toContain("Focus: blocked work");
     });
   });
 
